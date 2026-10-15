@@ -367,6 +367,37 @@ test("context hook ignores non-anthropic providers", async () => {
   assert.deepEqual(input.system, system)
 })
 
+test("V2 request hooks normalize chronological system updates after tool results", async () => {
+  const messages = [
+    { role: "user", content: [{ type: "text", text: "Read the fixture." }] },
+    { role: "assistant", content: [{ type: "tool-call", id: "call-1", name: "read", input: {} }] },
+    { role: "tool", content: [{ type: "tool-result", id: "call-1", name: "read", result: { type: "text", value: "fixture" } }] },
+    { role: "system", content: [{ type: "text", text: "Continue <safely> & finish." }] },
+  ]
+  for (const name of ["context", "compaction", "title", "generate"]) {
+    const input = await ctx.emit(name, {
+      sessionID: "sess-v2",
+      agent: "build",
+      model: { id: "claude-sonnet-5-5", providerID: "anthropic" },
+      system: [{ type: "text", text: "Plain instructions." }],
+      messages: structuredClone(messages),
+      options: {},
+      tools: {},
+    })
+    assert.deepEqual(input.messages.slice(0, 3), messages.slice(0, 3), name)
+    assert.deepEqual(input.messages[3], {
+      role: "user",
+      content: [{ type: "text", text: "<system-update>\nContinue &lt;safely&gt; &amp; finish.\n</system-update>" }],
+    }, name)
+    const otherProvider = await ctx.emit(name, {
+      ...input,
+      model: { id: "gpt", providerID: "openai" },
+      messages: structuredClone(messages),
+    })
+    assert.deepEqual(otherProvider.messages, messages, `${name} ignores other providers`)
+  }
+})
+
 test("cleanup disposes every registration and stops the proxy", async () => {
   const ready = stderrLines.find((line) => line.includes("proxy ready at http://"))
   const proxyURL = ready.slice(ready.indexOf("http://"))

@@ -22,6 +22,7 @@ import {
   startProxy,
   type ProxyHandle,
 } from "./proxy"
+import { normalizeSystemUpdates } from "./v2-messages"
 
 const PLUGIN_ID = "opencode-with-claude"
 const ANTHROPIC = "anthropic"
@@ -310,6 +311,7 @@ const setup: OpenCodeV2.Plugin["setup"] = async (ctx) => {
         await ctx.session.hook(
           name,
           (input) => {
+            normalizeSystemUpdates(input.messages)
             const scrubbed = scrubSystemPrompt(input.system.map((part) => part.text))
             if (scrubbed !== undefined) {
               input.system.splice(0, input.system.length, {
