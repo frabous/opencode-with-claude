@@ -233,12 +233,27 @@ test("model.request points anthropic at the proxy's /v1 and adds session headers
   assert.equal(input.headers["x-meridian-source"], undefined)
 })
 
+test("model.request replaces the entire anthropic placeholder URL regardless of its path (#234)", async () => {
+  const ready = stderrLines.find((line) => line.includes("proxy ready at http://"))
+  const proxyURL = ready.slice(ready.indexOf("http://"))
+
+  for (const baseURL of [
+    "http://127.0.0.1:3456",
+    "http://127.0.0.1:3456/v1",
+    "http://placeholder.invalid/custom/v1",
+  ]) {
+    const input = await ctx.emit("model.request", modelRequest({ baseURL }))
+    assert.equal(input.baseURL, `${proxyURL}/v1`, `placeholder: ${baseURL}`)
+  }
+})
+
 test("model.request leaves other providers alone", async () => {
   const input = await ctx.emit("model.request", modelRequest({
     model: { id: "gpt", providerID: "openai" },
+    baseURL: "http://example.test/v1",
     headers: { "anthropic-beta": "still-here" },
   }))
-  assert.equal(input.baseURL, undefined)
+  assert.equal(input.baseURL, "http://example.test/v1")
   assert.deepEqual(input.headers, { "anthropic-beta": "still-here" })
 })
 
